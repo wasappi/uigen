@@ -8,7 +8,6 @@ on:
     types: [opened, assigned]
   pull_request_review:
     types: [submitted]
-
 jobs:
   claude:
     if: |
@@ -23,6 +22,9 @@ jobs:
       issues: read
       id-token: write
       actions: read
+    env:
+      DATABASE_URL: "file:./dev.db"
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,7 +37,7 @@ jobs:
           npx prisma generate
           npx prisma migrate deploy
           npm run dev:daemon
-          
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
