@@ -31,9 +31,11 @@ jobs:
 
       - name: Setup
         run: |
-          npm run setup
+          npm install
+          npx prisma generate
+          npx prisma migrate deploy
           npm run dev:daemon
-
+          
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
