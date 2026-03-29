@@ -12,7 +12,14 @@ on:
 jobs:
   claude:
     # RESTRICTION: Only the Repo Owner can trigger Claude to save your Pro credits
-    if: github.event.issue.author_association == 'OWNER' || github.event.comment.author_association == 'OWNER' || github.event.review.author_association == 'OWNER'
+    if: |
+      (contains(github.event.comment.body, '@claude') || 
+       contains(github.event.issue.title, '@claude') || 
+       contains(github.event.issue.body, '@claude') ||
+       contains(github.event.review.body, '@claude')) &&
+      (github.event.comment.author_association == 'OWNER' || 
+       github.event.issue.author_association == 'OWNER' || 
+       github.event.review.author_association == 'OWNER')
     runs-on: ubuntu-latest
     
     # --- THIS BLOCK FIXES THE "ENVIRONMENT VARIABLE" BUG ---
