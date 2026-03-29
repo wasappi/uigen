@@ -2,57 +2,55 @@ name: Claude Code
 on:
   issue_comment:
     types: [created]
-  pull_request_review_comment:
-    types: [created]
   issues:
     types: [opened, assigned]
   pull_request_review:
     types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+
 jobs:
   claude:
-    if: |
-      (
-        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
-      ) && 
-      (github.event.comment.author_association == 'OWNER' || github.event.issue.author_association == 'OWNER' || github.event.review.author_association == 'OWNER')
+    # RESTRICTION: Only the Repo Owner can trigger Claude to save your Pro credits
+    if: github.event.issue.author_association == 'OWNER' || github.event.comment.author_association == 'OWNER' || github.event.review.author_association == 'OWNER'
     runs-on: ubuntu-latest
+    
+    # --- THIS BLOCK FIXES THE "ENVIRONMENT VARIABLE" BUG ---
+    env:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    # -------------------------------------------------------
+
     permissions:
       contents: write
       pull-requests: write
       issues: write
       id-token: write
       actions: read
-    env:
-      DATABASE_URL: "file:./dev.db"
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Setup
+      - name: Setup Project
         run: |
           npm install
           npx prisma generate
           npx prisma migrate deploy
-          npm run dev:daemon
+          npm run dev:daemon & 
 
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         with:
-          # Switched to OAuth Token for Pro Subscription
+          # We pass it here as an input AND above as an env var to be 100% sure
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           additional_permissions: |
             actions: read
           claude_args: |
-            --append-system-prompt "The project is already set up with all dependencies installed. The server is already running at localhost:3000. Logs from it are being written to logs.txt. If needed, you can query the db with the 'sqlite3' cli. If needed, use the mcp_playwright set of tools to launch browser and interact with the app."
-            --mcp-config '{"mcpServers":{"playwright":{"command":"npx","args":["@playwright/mcp@latest","--allowed-origins","localhost:3000;cdn.tailwindcss.com;esm.sh"]}}}'
-            --allowedTools "Bash(npm:*),Bash(sqlite3:*),mcp__playwright__browser_snapshot,mcp__playwright__browser_click,mcp__playwright__browser_navigate"
+            --dangerously-skip-permissions
+            --append-system-prompt "The project is already set up. Server at localhost:3000. Use sqlite3 or playwright as needed."
+            --mcp-config '{"mcpServers":{"playwright":{"command":"npx","args":["-y","@playwright/mcp@latest","--allowed-origins","localhost:3000;cdn.tailwindcss.com;esm.sh"]}}}'
+            --allowedTools "Bash(npm:*),Bash(sqlite3:*),mcp__playwright__browser_navigate,mcp__playwright__browser_click,mcp__playwright__browser_type,mcp__playwright__browser_take_screenshot,mcp__playwright__browser_wait_for_load_state"
